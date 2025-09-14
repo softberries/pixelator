@@ -1,3 +1,5 @@
+![Pixelator Example](pixelator_jur.png)
+
 # Pixelator
 
 A Rust library and CLI tool for converting images into SVG circle art suitable for poster printing.
