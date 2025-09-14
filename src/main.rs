@@ -1,7 +1,23 @@
 use anyhow::Result;
-use clap::Parser;
+use clap::{Parser, ValueEnum};
 use pixelator::{Pixelator, PixelatorConfig, config::SampleMode};
 use std::path::PathBuf;
+
+#[derive(Debug, Clone, Copy, ValueEnum)]
+enum SampleModeArg {
+    Grid,
+    Hexagonal,
+    Hex,
+}
+
+impl From<SampleModeArg> for SampleMode {
+    fn from(mode: SampleModeArg) -> Self {
+        match mode {
+            SampleModeArg::Grid => SampleMode::Grid,
+            SampleModeArg::Hexagonal | SampleModeArg::Hex => SampleMode::Hexagonal,
+        }
+    }
+}
 
 #[derive(Parser, Debug)]
 #[command(author, version, about, long_about = None)]
@@ -27,8 +43,8 @@ struct Args {
     #[arg(short = 'b', long, help = "Background color (e.g., #FFFFFF or white)")]
     background: Option<String>,
 
-    #[arg(short = 'm', long, default_value = "grid", help = "Sampling mode: grid or hexagonal")]
-    mode: String,
+    #[arg(short = 'm', long, default_value = "grid", value_enum, help = "Sampling mode")]
+    mode: SampleModeArg,
 }
 
 fn main() -> Result<()> {
@@ -48,17 +64,13 @@ fn main() -> Result<()> {
         config = config.with_background_color(bg);
     }
 
-    let sample_mode = match args.mode.to_lowercase().as_str() {
-        "hexagonal" | "hex" => SampleMode::Hexagonal,
-        _ => SampleMode::Grid,
-    };
-    config = config.with_sample_mode(sample_mode);
+    config = config.with_sample_mode(args.mode.into());
 
     println!("Processing image: {:?}", args.input);
     println!("Configuration:");
     println!("  Circle diameter: {} pixels", args.circle_diameter);
     println!("  Circle spacing: {} pixels", args.circle_spacing);
-    println!("  Sample mode: {}", args.mode);
+    println!("  Sample mode: {:?}", args.mode);
     
     if let (Some(w), Some(h)) = (args.width_mm, args.height_mm) {
         println!("  Output dimensions: {}mm x {}mm", w, h);

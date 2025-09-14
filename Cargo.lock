@@ -329,6 +329,7 @@ dependencies = [
  "anyhow",
  "clap",
  "image",
+ "rayon",
  "svg",
  "thiserror",
 ]

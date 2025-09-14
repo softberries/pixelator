@@ -1,18 +1,28 @@
 use crate::config::PixelatorConfig;
 use crate::error::Result;
 use crate::processor::PixelData;
+use std::collections::HashMap;
 use svg::Document;
 use svg::node::element::Circle;
 
+/// Generates SVG output from sampled pixel data
 pub struct SvgGenerator<'a> {
     config: &'a PixelatorConfig,
 }
 
 impl<'a> SvgGenerator<'a> {
+    /// Creates a new SVG generator with the given configuration
     pub fn new(config: &'a PixelatorConfig) -> Self {
         Self { config }
     }
     
+    /// Generates an SVG document from pixel data
+    /// Uses color caching to optimize performance for images with limited palettes
+    /// 
+    /// # Arguments
+    /// * `pixels` - The sampled pixel data
+    /// * `original_width` - Original image width in pixels
+    /// * `original_height` - Original image height in pixels
     pub fn generate_svg(
         &self,
         pixels: &[PixelData],
@@ -39,13 +49,17 @@ impl<'a> SvgGenerator<'a> {
         
         let radius = self.config.circle_diameter / 2.0;
         
+        // Cache color strings to avoid repeated allocations
+        let mut color_cache: HashMap<(u8, u8, u8), String> = HashMap::new();
+        
         for pixel in pixels {
-            let color = format!(
-                "rgb({}, {}, {})",
-                pixel.color[0],
-                pixel.color[1],
-                pixel.color[2]
-            );
+            let color_key = (pixel.color[0], pixel.color[1], pixel.color[2]);
+            
+            // Get or create the color string
+            let color = color_cache.entry(color_key)
+                .or_insert_with(|| {
+                    format!("rgb({},{},{})", color_key.0, color_key.1, color_key.2)
+                });
             
             let opacity = pixel.color[3] as f32 / 255.0;
             
@@ -53,7 +67,7 @@ impl<'a> SvgGenerator<'a> {
                 .set("cx", pixel.x)
                 .set("cy", pixel.y)
                 .set("r", radius)
-                .set("fill", color)
+                .set("fill", color.as_str())
                 .set("fill-opacity", opacity);
             
             document = document.add(circle);

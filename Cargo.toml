@@ -20,3 +20,4 @@ clap = { version = "4.4", features = ["derive"] }
 svg = "0.13"
 anyhow = "1.0"
 thiserror = "1.0"
+rayon = "1.7"
