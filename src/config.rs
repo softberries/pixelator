@@ -9,6 +9,9 @@ pub struct PixelatorConfig {
     pub output_height_mm: Option<f32>,
     pub background_color: Option<String>,
     pub sample_mode: SampleMode,
+    pub render_mode: RenderMode,
+    pub max_dot_size: f32,  // Maximum dot size for halftone mode
+    pub min_dot_size: f32,  // Minimum dot size for halftone mode
 }
 
 impl Default for PixelatorConfig {
@@ -20,6 +23,9 @@ impl Default for PixelatorConfig {
             output_height_mm: None,
             background_color: None,
             sample_mode: SampleMode::Grid,
+            render_mode: RenderMode::Color,
+            max_dot_size: 10.0,
+            min_dot_size: 1.0,
         }
     }
 }
@@ -31,6 +37,24 @@ pub enum SampleMode {
     Grid,
     /// Hexagonal/honeycomb pattern
     Hexagonal,
+}
+
+/// Rendering style for the output
+#[derive(Debug, Clone)]
+pub enum RenderMode {
+    /// Full color circles (original mode)
+    Color,
+    /// Halftone effect with variable dot sizes
+    Halftone(HalftoneStyle),
+}
+
+/// Halftone rendering style options
+#[derive(Debug, Clone)]
+pub enum HalftoneStyle {
+    /// Black dots on white background
+    BlackOnWhite,
+    /// White dots on black background
+    WhiteOnBlack,
 }
 
 impl PixelatorConfig {
@@ -59,6 +83,9 @@ impl PixelatorConfig {
             output_height_mm: None,
             background_color: None,
             sample_mode: SampleMode::Grid,
+            render_mode: RenderMode::Color,
+            max_dot_size: circle_diameter,
+            min_dot_size: circle_diameter * 0.1,
         })
     }
     
@@ -89,5 +116,28 @@ impl PixelatorConfig {
     /// Returns the total spacing between circle centers
     pub fn get_total_spacing(&self) -> f32 {
         self.circle_diameter + self.circle_spacing
+    }
+    
+    /// Sets the rendering mode
+    pub fn with_render_mode(mut self, mode: RenderMode) -> Self {
+        self.render_mode = mode;
+        self
+    }
+    
+    /// Sets the halftone dot size range
+    pub fn with_halftone_range(mut self, min_size: f32, max_size: f32) -> Result<Self> {
+        if min_size <= 0.0 || max_size <= 0.0 {
+            return Err(PixelatorError::InvalidConfig(
+                "Dot sizes must be positive".to_string(),
+            ));
+        }
+        if min_size > max_size {
+            return Err(PixelatorError::InvalidConfig(
+                "Minimum dot size must be less than maximum".to_string(),
+            ));
+        }
+        self.min_dot_size = min_size;
+        self.max_dot_size = max_size;
+        Ok(self)
     }
 }

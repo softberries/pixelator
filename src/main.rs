@@ -1,6 +1,6 @@
 use anyhow::Result;
 use clap::{Parser, ValueEnum};
-use pixelator::{Pixelator, PixelatorConfig, config::SampleMode};
+use pixelator::{Pixelator, PixelatorConfig, config::{SampleMode, RenderMode, HalftoneStyle}};
 use std::path::PathBuf;
 
 #[derive(Debug, Clone, Copy, ValueEnum)]
@@ -15,6 +15,23 @@ impl From<SampleModeArg> for SampleMode {
         match mode {
             SampleModeArg::Grid => SampleMode::Grid,
             SampleModeArg::Hexagonal | SampleModeArg::Hex => SampleMode::Hexagonal,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, ValueEnum)]
+enum RenderModeArg {
+    Color,
+    HalftoneBlack,
+    HalftoneWhite,
+}
+
+impl From<RenderModeArg> for RenderMode {
+    fn from(mode: RenderModeArg) -> Self {
+        match mode {
+            RenderModeArg::Color => RenderMode::Color,
+            RenderModeArg::HalftoneBlack => RenderMode::Halftone(HalftoneStyle::BlackOnWhite),
+            RenderModeArg::HalftoneWhite => RenderMode::Halftone(HalftoneStyle::WhiteOnBlack),
         }
     }
 }
@@ -45,6 +62,15 @@ struct Args {
 
     #[arg(short = 'm', long, default_value = "grid", value_enum, help = "Sampling mode")]
     mode: SampleModeArg,
+    
+    #[arg(short = 'r', long, default_value = "color", value_enum, help = "Render mode: color, halftone-black, halftone-white")]
+    render: RenderModeArg,
+    
+    #[arg(long, help = "Minimum dot size for halftone mode")]
+    min_dot: Option<f32>,
+    
+    #[arg(long, help = "Maximum dot size for halftone mode")]
+    max_dot: Option<f32>,
 }
 
 fn main() -> Result<()> {
@@ -65,12 +91,22 @@ fn main() -> Result<()> {
     }
 
     config = config.with_sample_mode(args.mode.into());
+    config = config.with_render_mode(args.render.into());
+    
+    // Set halftone range if specified
+    if let (Some(min), Some(max)) = (args.min_dot, args.max_dot) {
+        config = config.with_halftone_range(min, max)?;
+    } else if matches!(args.render, RenderModeArg::HalftoneBlack | RenderModeArg::HalftoneWhite) {
+        // Default halftone range if not specified but halftone mode is selected
+        config = config.with_halftone_range(0.5, args.circle_diameter)?;
+    }
 
     println!("Processing image: {:?}", args.input);
     println!("Configuration:");
     println!("  Circle diameter: {} pixels", args.circle_diameter);
     println!("  Circle spacing: {} pixels", args.circle_spacing);
     println!("  Sample mode: {:?}", args.mode);
+    println!("  Render mode: {:?}", args.render);
     
     if let (Some(w), Some(h)) = (args.width_mm, args.height_mm) {
         println!("  Output dimensions: {}mm x {}mm", w, h);

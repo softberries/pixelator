@@ -12,6 +12,8 @@ pub struct PixelData {
     pub x: f32,
     pub y: f32,
     pub color: Rgba<u8>,
+    pub brightness: f32,  // Brightness value for halftone mode (0.0 to 1.0)
+    pub dot_size: f32,     // Variable dot size for halftone mode
 }
 
 /// Processes images by sampling pixels at regular intervals
@@ -54,8 +56,10 @@ impl<'a> ImageProcessor<'a> {
                             let sample_y = (y as u32).min(img_height - 1);
                             
                             let color = Self::sample_area_static(&rgba_image, sample_x, sample_y, circle_diameter);
+                            let brightness = Self::calculate_brightness(&color);
+                            let dot_size = self.calculate_dot_size(brightness);
                             
-                            PixelData { x, y, color }
+                            PixelData { x, y, color, brightness, dot_size }
                         })
                     })
                     .collect();
@@ -86,8 +90,10 @@ impl<'a> ImageProcessor<'a> {
                             let sample_y = (y as u32).min(img_height - 1);
                             
                             let color = Self::sample_area_static(&rgba_image, sample_x, sample_y, self.config.circle_diameter);
+                            let brightness = Self::calculate_brightness(&color);
+                            let dot_size = self.calculate_dot_size(brightness);
                             
-                            row_pixels.push(PixelData { x, y, color });
+                            row_pixels.push(PixelData { x, y, color, brightness, dot_size });
                             col += 1;
                         }
                         row_pixels
@@ -146,6 +152,37 @@ impl<'a> ImageProcessor<'a> {
             ])
         } else {
             *image.get_pixel(center_x, center_y)
+        }
+    }
+    
+    /// Calculate brightness from an RGBA color (0.0 = black, 1.0 = white)
+    pub fn calculate_brightness(color: &Rgba<u8>) -> f32 {
+        // Use standard luminance formula (ITU-R BT.709)
+        let r = color[0] as f32 / 255.0;
+        let g = color[1] as f32 / 255.0;
+        let b = color[2] as f32 / 255.0;
+        
+        0.2126 * r + 0.7152 * g + 0.0722 * b
+    }
+    
+    /// Calculate dot size based on brightness for halftone effect
+    fn calculate_dot_size(&self, brightness: f32) -> f32 {
+        use crate::config::{RenderMode, HalftoneStyle};
+        
+        match &self.config.render_mode {
+            RenderMode::Color => self.config.circle_diameter,
+            RenderMode::Halftone(style) => {
+                // Invert brightness for black-on-white (darker = larger dots)
+                // Keep normal for white-on-black (brighter = larger dots)
+                let adjusted_brightness = match style {
+                    HalftoneStyle::BlackOnWhite => 1.0 - brightness,
+                    HalftoneStyle::WhiteOnBlack => brightness,
+                };
+                
+                // Map brightness to dot size range
+                self.config.min_dot_size + 
+                    (self.config.max_dot_size - self.config.min_dot_size) * adjusted_brightness
+            }
         }
     }
 }

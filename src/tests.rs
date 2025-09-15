@@ -75,6 +75,8 @@ mod tests {
             x: 10.0,
             y: 20.0,
             color: Rgba([255, 128, 64, 255]),
+            brightness: 0.5,
+            dot_size: 5.0,
         };
         
         assert_eq!(pixel.x, 10.0);
@@ -148,11 +150,15 @@ mod tests {
                 x: 10.0,
                 y: 10.0,
                 color: Rgba([255, 0, 0, 255]),
+                brightness: 0.5,
+                dot_size: 5.0,
             },
             PixelData {
                 x: 30.0,
                 y: 30.0,
                 color: Rgba([0, 255, 0, 255]),
+                brightness: 0.5,
+                dot_size: 5.0,
             },
         ];
         
@@ -183,6 +189,8 @@ mod tests {
                 x: (i * 10) as f32,
                 y: 10.0,
                 color: Rgba([128, 128, 128, 255]), // Same color for all
+                brightness: 0.5,
+                dot_size: 5.0,
             });
         }
         
@@ -200,5 +208,76 @@ mod tests {
         // Check that the constant is approximately sqrt(3)/2
         let expected = (3.0_f32).sqrt() / 2.0;
         assert!((HEXAGONAL_ROW_HEIGHT_FACTOR - expected).abs() < 0.001);
+    }
+    
+    #[test]
+    fn test_halftone_configuration() {
+        use crate::config::{RenderMode, HalftoneStyle};
+        
+        let config = PixelatorConfig::new(10.0, 2.0)
+            .unwrap()
+            .with_render_mode(RenderMode::Halftone(HalftoneStyle::BlackOnWhite))
+            .with_halftone_range(1.0, 10.0)
+            .unwrap();
+        
+        assert!(matches!(config.render_mode, RenderMode::Halftone(_)));
+        assert_eq!(config.min_dot_size, 1.0);
+        assert_eq!(config.max_dot_size, 10.0);
+    }
+    
+    #[test]
+    fn test_brightness_calculation() {
+        use crate::processor::ImageProcessor;
+        use image::Rgba;
+        
+        // Test white
+        let white = Rgba([255, 255, 255, 255]);
+        let brightness = ImageProcessor::calculate_brightness(&white);
+        assert!((brightness - 1.0).abs() < 0.01);
+        
+        // Test black
+        let black = Rgba([0, 0, 0, 255]);
+        let brightness = ImageProcessor::calculate_brightness(&black);
+        assert!(brightness < 0.01);
+        
+        // Test mid gray
+        let gray = Rgba([128, 128, 128, 255]);
+        let brightness = ImageProcessor::calculate_brightness(&gray);
+        assert!((brightness - 0.5).abs() < 0.1);
+    }
+    
+    #[test]
+    fn test_halftone_svg_generation() {
+        use crate::config::{RenderMode, HalftoneStyle};
+        
+        let config = PixelatorConfig::new(10.0, 2.0)
+            .unwrap()
+            .with_render_mode(RenderMode::Halftone(HalftoneStyle::BlackOnWhite));
+        
+        let generator = crate::svg_generator::SvgGenerator::new(&config);
+        
+        let pixels = vec![
+            PixelData {
+                x: 10.0,
+                y: 10.0,
+                color: Rgba([0, 0, 0, 255]),
+                brightness: 0.0,
+                dot_size: 10.0,  // Large dot for black
+            },
+            PixelData {
+                x: 30.0,
+                y: 30.0,
+                color: Rgba([255, 255, 255, 255]),
+                brightness: 1.0,
+                dot_size: 1.0,  // Small dot for white
+            },
+        ];
+        
+        let svg = generator.generate_svg(&pixels, 100, 100).unwrap();
+        
+        // Check that SVG contains black circles
+        assert!(svg.contains("fill=\"black\""));
+        // Check background is white
+        assert!(svg.contains("background-color: white"));
     }
 }
